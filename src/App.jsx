@@ -1,3 +1,4 @@
+// App.jsx - Fixed scroll issues + rocket follows cursor accurately
 import { Suspense, useEffect, useRef, useState, lazy } from 'react'
 import gsap from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
@@ -12,6 +13,7 @@ function App() {
   const eraThresholds = [0, 260, 520, 840]
   const appRef = useRef(null)
   const cursorRef = useRef(null)
+  const gameSectionRef = useRef(null)
   const [score, setScore] = useState(0)
   const [gameActive, setGameActive] = useState(false)
   const [gameHint, setGameHint] = useState('Use W to thrust and A / D to steer the rocket.')
@@ -19,8 +21,11 @@ function App() {
   const [timeWarpActive, setTimeWarpActive] = useState(false)
   const [fuelCells, setFuelCells] = useState(0)
   const [obstacles, setObstacles] = useState([])
+  const [isRocketVisible, setIsRocketVisible] = useState(true)
   const gameRef = useRef(null)
+  const pageRocketRef = useRef(null)
   const playerRef = useRef(null)
+  const aiHeadingRef = useRef(null)
   const obstacleRefs = useRef([])
   const obstaclesRef = useRef([])
   const collectibleRefs = useRef([])
@@ -31,13 +36,222 @@ function App() {
   const lastScoreRef = useRef(0)
   const warpTimeoutRef = useRef(null)
   const playerPosRef = useRef({ x: 24, y: 24, vx: 0, vy: 0 })
+  const playerInitializedRef = useRef(false)
   const animationFrameRef = useRef(null)
   const lastFrameRef = useRef(0)
+  const isGameStartingRef = useRef(false)
+  const isResettingRef = useRef(false)
+  const rocketAngleRef = useRef(0)
+  const cursorPositionRef = useRef({ x: 0, y: 0 })
+  const rocketPositionRef = useRef({ x: 0, y: 0 })
+  const rafIdRef = useRef(null)
+
+  // Functions to control rocket visibility using GSAP
+  const hideRocket = () => {
+    setIsRocketVisible(false)
+    if (pageRocketRef.current) {
+      gsap.to(pageRocketRef.current, {
+        autoAlpha: 0,
+        duration: 0.3,
+        ease: 'power2.out'
+      })
+    }
+  }
+
+  const showRocket = () => {
+    setIsRocketVisible(true)
+    if (pageRocketRef.current) {
+      gsap.to(pageRocketRef.current, {
+        autoAlpha: 1,
+        duration: 0.5,
+        ease: 'power2.inOut'
+      })
+    }
+  }
+
+  // Simple scroll to game section without interfering with ScrollTrigger
+  const scrollToGame = () => {
+    if (gameSectionRef.current) {
+      const rect = gameSectionRef.current.getBoundingClientRect()
+      const absoluteTop = rect.top + window.pageYOffset
+      const targetY = absoluteTop - 100
+      
+      window.scrollTo({
+        top: targetY,
+        behavior: 'smooth'
+      })
+    }
+  }
+
+  // ACCURATE: Update rocket position and angle using RAF
+  const updateRocketRotation = () => {
+    const rocket = pageRocketRef.current
+    if (!rocket) return
+    
+    const opacity = parseFloat(rocket.style.opacity) || 0
+    if (opacity < 0.1) {
+      rafIdRef.current = requestAnimationFrame(updateRocketRotation)
+      return
+    }
+    
+    // Get the actual position of the rocket on screen
+    const rect = rocket.getBoundingClientRect()
+    const centerX = rect.left + rect.width / 2
+    const centerY = rect.top + rect.height / 2
+    
+    rocketPositionRef.current = { x: centerX, y: centerY }
+    
+    // Calculate angle from rocket center to cursor position
+    const dx = cursorPositionRef.current.x - centerX
+    const dy = cursorPositionRef.current.y - centerY
+    const angle = Math.atan2(dy, dx) * (50 / Math.PI)
+    
+    // Apply rotation directly (no GSAP for instant response)
+    rocket.style.transform = rocket.style.transform.replace(/rotate\([^)]*\)/, '')
+    // Keep existing transform but update rotation
+    // We need to preserve the translate and scale from GSAP
+    const currentTransform = rocket.style.transform || ''
+    // Remove any existing rotate
+    const cleanTransform = currentTransform.replace(/rotate\([^)]*\)\s*/g, '').trim()
+    rocket.style.transform = cleanTransform ? `${cleanTransform} rotate(${angle}deg)` : `rotate(${angle}deg)`
+    
+    rocketAngleRef.current = angle
+    
+    rafIdRef.current = requestAnimationFrame(updateRocketRotation)
+  }
+
+  // Start/stop RAF for rocket rotation
+  useEffect(() => {
+    // Start the RAF loop
+    rafIdRef.current = requestAnimationFrame(updateRocketRotation)
+    
+    return () => {
+      if (rafIdRef.current) {
+        cancelAnimationFrame(rafIdRef.current)
+        rafIdRef.current = null
+      }
+    }
+  }, [])
 
   useEffect(() => {
     gsap.registerPlugin(ScrollTrigger, Flip)
 
     const ctx = gsap.context(() => {
+      const pageRocket = pageRocketRef.current
+      if (pageRocket) {
+        gsap.set(pageRocket, {
+          left: '72vw',
+          top: '26vh',
+          xPercent: -50,
+          yPercent: -50,
+          rotate: 12,
+          scale: 1.02,
+          autoAlpha: 0,
+          zIndex: 9000,
+        })
+
+        // Hero section rocket animation
+        ScrollTrigger.create({
+          trigger: '.hero',
+          start: 'top top',
+          end: '+=3800',
+          scrub: 1,
+          invalidateOnRefresh: true,
+          onUpdate: (self) => {
+            const aiStart = 0.68
+            const aiEnd = 1
+            const raw = (self.progress - aiStart) / (aiEnd - aiStart)
+            const progress = gsap.utils.clamp(0, 1, raw)
+            const visible = raw >= 0 && isRocketVisible
+
+            // Store current rotation before GSAP updates
+            const currentRotation = rocketAngleRef.current || 12
+            
+            gsap.set(pageRocket, {
+              autoAlpha: visible ? 1 : 0,
+              left: `${gsap.utils.interpolate(72, 54, progress)}vw`,
+              top: `${gsap.utils.interpolate(26, 82, progress)}vh`,
+              rotate: currentRotation, // Preserve cursor tracking
+              scale: gsap.utils.interpolate(1.02, 1.08, progress),
+              zIndex: 9000,
+            })
+          },
+        })
+
+        // Timeline section - rocket COMPLETELY HIDDEN (autoAlpha: 0)
+        ScrollTrigger.create({
+          trigger: '.timeline-section',
+          start: 'top bottom',
+          endTrigger: '.game-section',
+          end: 'top center',
+          scrub: 1,
+          invalidateOnRefresh: true,
+          onUpdate: (self) => {
+            const progress = self.progress
+            
+            let opacity = 0
+            let zIndex = 1
+            
+            if (progress < 0.15) {
+              const fadeOut = progress / 0.15
+              opacity = gsap.utils.interpolate(1, 0, fadeOut)
+              zIndex = 1
+            } else if (progress < 0.85) {
+              opacity = 0
+              zIndex = 1
+            } else {
+              const fadeIn = (progress - 0.85) / 0.15
+              opacity = gsap.utils.interpolate(0, 1, fadeIn)
+              zIndex = 9000
+            }
+            
+            const finalOpacity = isRocketVisible ? opacity : 0
+            
+            const posProgress = gsap.utils.clamp(0, 1, progress)
+            const left = gsap.utils.interpolate(54, 48, posProgress)
+            const top = gsap.utils.interpolate(82, 60, posProgress)
+            
+            const currentRotation = rocketAngleRef.current || 0
+            
+            gsap.set(pageRocket, {
+              autoAlpha: finalOpacity,
+              left: `${left}vw`,
+              top: `${top}vh`,
+              rotate: currentRotation, // Preserve cursor tracking
+              scale: gsap.utils.interpolate(1.08, 0.9, posProgress),
+              zIndex: zIndex,
+            })
+          },
+        })
+
+        // Final approach to game section - rocket appears
+        ScrollTrigger.create({
+          trigger: '.game-section',
+          start: 'top bottom',
+          end: 'top center',
+          scrub: 1,
+          invalidateOnRefresh: true,
+          onUpdate: (self) => {
+            const progress = gsap.utils.clamp(0, 1, self.progress * 2)
+            
+            const opacity = progress < 0.1 ? 0 : gsap.utils.interpolate(0, 0.9, (progress - 0.1) / 0.7)
+            const finalOpacity = isRocketVisible ? opacity : 0
+            
+            const currentRotation = rocketAngleRef.current || 0
+            
+            gsap.set(pageRocket, {
+              autoAlpha: finalOpacity,
+              left: `${gsap.utils.interpolate(48, 44, progress)}vw`,
+              top: `${gsap.utils.interpolate(60, 48, progress)}vh`,
+              rotate: currentRotation, // Preserve cursor tracking
+              scale: gsap.utils.interpolate(0.9, 0.7, progress),
+              zIndex: 9000,
+            })
+          },
+        })
+      }
+
+      // ... (rest of the scroll animations - unchanged)
       const hero = '.hero'
       const timeline = gsap.timeline({
         scrollTrigger: {
@@ -299,7 +513,7 @@ function App() {
       })
     }, appRef)
 
-    // Marquee magnetic interaction (secret-sauce): responsive hover scaling
+    // Marquee magnetic interaction
     const marquee = document.querySelector('.timeline-marquee')
     let marqueeItems = []
     let mqMove = null
@@ -339,6 +553,9 @@ function App() {
         ? 'translate(-50%, -50%) scale(1.45)'
         : 'translate(-50%, -50%) scale(1)'
       cursor.style.background = hoverTarget ? 'rgba(255, 255, 255, 0.16)' : 'transparent'
+      
+      // Store cursor position for rocket tracking
+      cursorPositionRef.current = { x: event.clientX, y: event.clientY }
     }
 
     window.addEventListener('mousemove', moveCursor)
@@ -355,8 +572,9 @@ function App() {
         appRef.current.__cleanupThree()
       }
     }
-  }, [])
+  }, [isRocketVisible])
 
+  // ... (rest of the game logic - unchanged from your original)
   const activateTimeWarp = (message) => {
     if (timeWarpActive) return
     setTimeWarpActive(true)
@@ -401,17 +619,86 @@ function App() {
     })
   }
 
+  // Clean up game state
+  const cleanupGame = () => {
+    // Cancel animation frame
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current)
+      animationFrameRef.current = null
+    }
+    
+    // Clear timeouts
+    if (warpTimeoutRef.current) {
+      window.clearTimeout(warpTimeoutRef.current)
+      warpTimeoutRef.current = null
+    }
+    
+    // Reset player position
+    playerInitializedRef.current = false
+    playerPosRef.current = { x: 24, y: 24, vx: 0, vy: 0 }
+    
+    // Reset keys
+    keysRef.current = { w: false, a: false, s: false, d: false }
+    
+    // Clear obstacles and collectibles
+    obstaclesRef.current = []
+    collectibleDefsRef.current = []
+    obstacleRefs.current = []
+    collectibleRefs.current = []
+    
+    // Reset scores
+    scoreRef.current = 0
+    lastScoreRef.current = 0
+    
+    // Reset game state
+    setObstacles([])
+    setScore(0)
+    setFuelCells(0)
+    setEraIndex(0)
+    setTimeWarpActive(false)
+    
+    // Reset player visibility
+    if (playerRef.current) {
+      gsap.set(playerRef.current, {
+        x: 0,
+        y: 0,
+        rotation: 0,
+        scale: 1,
+        opacity: 1
+      })
+      playerRef.current.classList.remove('thrusting')
+    }
+  }
+
   useEffect(() => {
     const update = (time) => {
+      // If game is not active, just keep the loop running but don't update
+      if (!gameActive) {
+        lastFrameRef.current = time
+        animationFrameRef.current = requestAnimationFrame(update)
+        return
+      }
+
       if (!gameRef.current || !playerRef.current) {
         animationFrameRef.current = requestAnimationFrame(update)
         return
       }
 
-      if (!gameActive) {
-        lastFrameRef.current = time
-        animationFrameRef.current = requestAnimationFrame(update)
-        return
+      if (!playerInitializedRef.current) {
+        const board = gameRef.current.getBoundingClientRect()
+        playerPosRef.current = {
+          x: board.width / 2 - 26,
+          y: board.height - 124,
+          vx: 0,
+          vy: 0,
+        }
+        gsap.set(playerRef.current, {
+          x: playerPosRef.current.x,
+          y: playerPosRef.current.y,
+          rotation: 0,
+          scale: 1,
+        })
+        playerInitializedRef.current = true
       }
 
       const board = gameRef.current.getBoundingClientRect()
@@ -446,8 +733,8 @@ function App() {
 
       const minX = 0
       const maxX = board.width - 52
-      const minY = -120
-      const maxY = board.height - 80
+      const minY = -220
+      const maxY = board.height + 1400
       playerPosRef.current.x = gsap.utils.clamp(minX, maxX, playerPosRef.current.x)
       playerPosRef.current.y = gsap.utils.clamp(minY, maxY, playerPosRef.current.y)
 
@@ -456,7 +743,10 @@ function App() {
         y: playerPosRef.current.y,
         rotation: playerPosRef.current.vx * 0.04,
       })
-      playerRef.current.classList.toggle('thrusting', keysRef.current.w || keysRef.current.arrowup)
+      
+      if (playerRef.current) {
+        playerRef.current.classList.toggle('thrusting', keysRef.current.w || keysRef.current.arrowup)
+      }
 
       scoreRef.current += delta * (timeWarpActive ? 48 : 18)
       const displayedScore = Math.floor(scoreRef.current)
@@ -498,6 +788,7 @@ function App() {
         if (collision) {
           setGameActive(false)
           setGameHint('Protocol interrupted! Restart to continue your journey.')
+          hideRocket()
         }
       })
 
@@ -527,8 +818,14 @@ function App() {
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
       window.removeEventListener('keyup', handleKeyUp)
-      if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current)
-      if (warpTimeoutRef.current) window.clearTimeout(warpTimeoutRef.current)
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current)
+        animationFrameRef.current = null
+      }
+      if (warpTimeoutRef.current) {
+        window.clearTimeout(warpTimeoutRef.current)
+        warpTimeoutRef.current = null
+      }
     }
   }, [gameActive, eraIndex, timeWarpActive])
 
@@ -553,89 +850,150 @@ function App() {
     collectibleDefsRef.current = collectibles
   }
 
-  const beginGame = () => {
-    setScore(0)
-    scoreRef.current = 0
-    lastScoreRef.current = 0
-    keysRef.current = { w: false, a: false, s: false, d: false }
-    setFuelCells(0)
-    setTimeWarpActive(false)
-    setEraIndex(0)
-    setGameHint('Launch sequence start — dodge asteroids and collect fuel cells.')
-    setGameActive(true)
+  const beginGame = (e) => {
+    if (e) {
+      e.preventDefault()
+      e.stopPropagation()
+    }
+    
+    if (isGameStartingRef.current) return
+    isGameStartingRef.current = true
+    
+    // Clean up any existing game state
+    cleanupGame()
+    
+    hideRocket()
+    
+    // Scroll to game after a small delay
+    setTimeout(() => {
+      scrollToGame()
+    }, 100)
+    
+    // Initialize game after scroll
+    setTimeout(() => {
+      setScore(0)
+      scoreRef.current = 0
+      lastScoreRef.current = 0
+      keysRef.current = { w: false, a: false, s: false, d: false }
+      setFuelCells(0)
+      setTimeWarpActive(false)
+      setEraIndex(0)
+      setGameHint('Launch sequence start — dodge asteroids and collect fuel cells.')
+      setGameActive(true)
 
-    if (gameRef.current) {
-      const board = gameRef.current.getBoundingClientRect()
-      createObstacles(board)
-      lanePositionsRef.current = Array.from({ length: laneCount }, (_, index) => board.width / laneCount * (index + 0.5) - 22)
-      if (playerRef.current) {
-        playerPosRef.current = {
-          x: board.width / 2 - 26,
-          y: board.height - 124,
-          vx: 0,
-          vy: 0,
+      if (gameRef.current) {
+        const board = gameRef.current.getBoundingClientRect()
+        createObstacles(board)
+        lanePositionsRef.current = Array.from({ length: laneCount }, (_, index) => board.width / laneCount * (index + 0.5) - 22)
+        if (playerRef.current) {
+          playerInitializedRef.current = true
+          playerPosRef.current = {
+            x: board.width / 2 - 26,
+            y: board.height - 124,
+            vx: 0,
+            vy: 0,
+          }
+          gsap.set(playerRef.current, {
+            x: playerPosRef.current.x,
+            y: playerPosRef.current.y,
+            rotation: 0,
+            scale: 1,
+          })
         }
-        gsap.set(playerRef.current, {
-          x: playerPosRef.current.x,
-          y: playerPosRef.current.y,
-          rotation: 0,
-          scale: 1,
+        obstaclesRef.current.forEach((obs, idx) => {
+          const el = obstacleRefs.current[idx]
+          if (el) gsap.set(el, { x: lanePositionsRef.current[obs.lane], y: obs.y, rotation: obs.rotation })
+        })
+        collectibleDefsRef.current.forEach((item, idx) => {
+          const el = collectibleRefs.current[idx]
+          if (el) gsap.set(el, { x: lanePositionsRef.current[item.lane], y: item.y })
         })
       }
-      obstaclesRef.current.forEach((obs, idx) => {
-        const el = obstacleRefs.current[idx]
-        if (el) gsap.set(el, { x: lanePositionsRef.current[obs.lane], y: obs.y, rotation: obs.rotation })
-      })
-      collectibleDefsRef.current.forEach((item, idx) => {
-        const el = collectibleRefs.current[idx]
-        if (el) gsap.set(el, { x: lanePositionsRef.current[item.lane], y: item.y })
-      })
-    }
+      
+      isGameStartingRef.current = false
+    }, 300)
   }
 
-  const resetGame = () => {
+  const resetGame = (e) => {
+    if (e) {
+      e.preventDefault()
+      e.stopPropagation()
+    }
+    
+    if (isResettingRef.current) return
+    isResettingRef.current = true
+    
+    // Clean up everything
+    cleanupGame()
+    
+    // Reset game state
     setGameActive(false)
-    setScore(0)
-    scoreRef.current = 0
-    lastScoreRef.current = 0
-    boostRef.current = false
-    setFuelCells(0)
-    setTimeWarpActive(false)
-    setEraIndex(0)
     setGameHint('Use W to thrust and A / D to steer the rocket.')
-
-    if (gameRef.current) {
-      const board = gameRef.current.getBoundingClientRect()
-      lanePositionsRef.current = Array.from({ length: laneCount }, (_, index) => board.width / laneCount * (index + 0.5) - 22)
-      if (playerRef.current) {
-        playerPosRef.current = {
-          x: board.width / 2 - 26,
-          y: board.height - 124,
-          vx: 0,
-          vy: 0,
+    
+    // Show rocket after reset
+    showRocket()
+    
+    // Scroll to game after a small delay
+    setTimeout(() => {
+      scrollToGame()
+    }, 100)
+    
+    // Re-initialize after scroll
+    setTimeout(() => {
+      if (gameRef.current) {
+        const board = gameRef.current.getBoundingClientRect()
+        lanePositionsRef.current = Array.from({ length: laneCount }, (_, index) => board.width / laneCount * (index + 0.5) - 22)
+        
+        // Reset player position
+        if (playerRef.current) {
+          playerInitializedRef.current = true
+          playerPosRef.current = {
+            x: board.width / 2 - 26,
+            y: board.height - 124,
+            vx: 0,
+            vy: 0,
+          }
+          gsap.set(playerRef.current, {
+            x: playerPosRef.current.x,
+            y: playerPosRef.current.y,
+            rotation: 0,
+            scale: 1,
+          })
+          playerRef.current.classList.remove('thrusting')
         }
-        gsap.set(playerRef.current, {
-          x: playerPosRef.current.x,
-          y: playerPosRef.current.y,
-          rotation: 0,
-          scale: 1,
+        
+        // Create fresh obstacles
+        createObstacles(board)
+        
+        // Position all obstacles
+        obstaclesRef.current.forEach((obs, idx) => {
+          const el = obstacleRefs.current[idx]
+          if (el) gsap.set(el, { x: lanePositionsRef.current[obs.lane], y: obs.y, rotation: obs.rotation })
+        })
+        
+        // Position all collectibles
+        collectibleDefsRef.current.forEach((item, idx) => {
+          const el = collectibleRefs.current[idx]
+          if (el) gsap.set(el, { x: lanePositionsRef.current[item.lane], y: item.y })
         })
       }
-      createObstacles(board)
-      obstaclesRef.current.forEach((obs, idx) => {
-        const el = obstacleRefs.current[idx]
-        if (el) gsap.set(el, { x: lanePositionsRef.current[obs.lane], y: obs.y, rotation: obs.rotation })
-      })
-      collectibleDefsRef.current.forEach((item, idx) => {
-        const el = collectibleRefs.current[idx]
-        if (el) gsap.set(el, { x: lanePositionsRef.current[item.lane], y: item.y })
-      })
-    }
+      
+      isResettingRef.current = false
+    }, 300)
   }
 
   return (
     <div className="App" ref={appRef}>
       <div className="custom-cursor" ref={cursorRef} />
+      {/* Always render the rocket, control visibility with GSAP */}
+      <div className="page-rocket" ref={pageRocketRef} aria-hidden="true">
+        <div className="page-rocket__body">
+          <span className="page-rocket__window" />
+          <span className="page-rocket__fin page-rocket__fin--left" />
+          <span className="page-rocket__fin page-rocket__fin--right" />
+        </div>
+        <span className="page-rocket__trail" />
+      </div>
       <div className="hero">
         <div className="hero-background">
           <div className="orbit orbit--outer" />
@@ -659,7 +1017,7 @@ function App() {
                   <span />
                   <span />
                 </div>
-                <div className="address">http://retro-net.local</div>
+                <div className="address">https://charlespura.github.io/EvolutionoftheInternet/</div>
               </div>
               <div className="window-body">
                 <div className="scene web1">
@@ -775,7 +1133,7 @@ function App() {
 
                 <div className="scene ai">
                   <span className="era-pill">AI ERA</span>
-                  <h1>The page now thinks for itself</h1>
+                  <h1 ref={aiHeadingRef}>The page now thinks for itself</h1>
                   <p>
                     Dynamic stories, smart layers, and immersive code that evolves
                     with every scroll.
@@ -860,7 +1218,11 @@ function App() {
         </Suspense>
       </section>
 
-      <section className="game-section">
+      <section 
+        className="game-section" 
+        ref={gameSectionRef}
+        tabIndex={-1}
+      >
         <div className="game-panel">
           <div className="game-heading">
             <div>
@@ -869,10 +1231,18 @@ function App() {
               <p className="game-subtitle">{gameHint}</p>
             </div>
             <div className="game-actions">
-              <button type="button" onClick={beginGame} className="game-button">
+              <button 
+                type="button" 
+                onClick={beginGame} 
+                className="game-button"
+              >
                 {gameActive ? 'Restart Sprint' : 'Start Sprint'}
               </button>
-              <button type="button" onClick={resetGame} className="game-button game-button--ghost">
+              <button 
+                type="button" 
+                onClick={resetGame} 
+                className="game-button game-button--ghost"
+              >
                 Reset
               </button>
             </div>
@@ -924,7 +1294,50 @@ function App() {
         </div>
       </section>
 
-      <div className="scroll-space" />
+      {/* Rocket Landing Section */}
+      <section className="rocket-landing-section">
+        <div className="rocket-landing-content">
+          <div className="landing-rocket-container">
+            <div className="landing-rocket">
+              <div className="landing-rocket__body">
+                <span className="landing-rocket__window" />
+                <span className="landing-rocket__fin landing-rocket__fin--left" />
+                <span className="landing-rocket__fin landing-rocket__fin--right" />
+                <span className="landing-rocket__flame" />
+              </div>
+              <div className="landing-particles">
+                <span className="particle particle--1" />
+                <span className="particle particle--2" />
+                <span className="particle particle--3" />
+                <span className="particle particle--4" />
+                <span className="particle particle--5" />
+              </div>
+            </div>
+          </div>
+          <div className="landing-text">
+            <h2>Mission Complete</h2>
+            <p>Your journey through the evolution of the web has landed safely.</p>
+            <div className="landing-stats">
+              <span>🌐 Web Evolution</span>
+              <span>🚀 Rocket Run</span>
+              <span>✨ AI Era</span>
+            </div>
+          </div>
+        </div>
+        <footer className="landing-footer">
+          <div className="footer-content">
+            <span className="footer-copyright">
+              © {new Date().getFullYear()} Charles Pura. All rights reserved.
+            </span>
+            <span className="footer-tagline">Built with ❤️ for the future of the web</span>
+            <div className="footer-links">
+              <a href="#" className="footer-link">GitHub</a>
+              <a href="#" className="footer-link">Twitter</a>
+              <a href="#" className="footer-link">LinkedIn</a>
+            </div>
+          </div>
+        </footer>
+      </section>
     </div>
   )
 }
