@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "optimize:svgs": "svgo -f src --ext .svg",
     "lint": "oxlint",
     "preview": "vite preview"
   },
