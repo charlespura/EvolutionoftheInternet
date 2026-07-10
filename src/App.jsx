@@ -1,4 +1,4 @@
-// App.jsx - Fixed scroll issues + rocket follows cursor accurately
+// App.jsx - Enhanced with historical accuracy, dates, and trivia
 import { Suspense, useEffect, useRef, useState, lazy } from 'react'
 import gsap from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
@@ -94,24 +94,17 @@ function App() {
       return
     }
     
-    // Get the actual position of the rocket on screen
     const rect = rocket.getBoundingClientRect()
     const centerX = rect.left + rect.width / 2
     const centerY = rect.top + rect.height / 2
     
     rocketPositionRef.current = { x: centerX, y: centerY }
     
-    // Calculate angle from rocket center to cursor position
     const dx = cursorPositionRef.current.x - centerX
     const dy = cursorPositionRef.current.y - centerY
     const angle = Math.atan2(dy, dx) * (50 / Math.PI)
     
-    // Apply rotation directly (no GSAP for instant response)
-    rocket.style.transform = rocket.style.transform.replace(/rotate\([^)]*\)/, '')
-    // Keep existing transform but update rotation
-    // We need to preserve the translate and scale from GSAP
     const currentTransform = rocket.style.transform || ''
-    // Remove any existing rotate
     const cleanTransform = currentTransform.replace(/rotate\([^)]*\)\s*/g, '').trim()
     rocket.style.transform = cleanTransform ? `${cleanTransform} rotate(${angle}deg)` : `rotate(${angle}deg)`
     
@@ -122,7 +115,6 @@ function App() {
 
   // Start/stop RAF for rocket rotation
   useEffect(() => {
-    // Start the RAF loop
     rafIdRef.current = requestAnimationFrame(updateRocketRotation)
     
     return () => {
@@ -164,21 +156,20 @@ function App() {
             const progress = gsap.utils.clamp(0, 1, raw)
             const visible = raw >= 0 && isRocketVisible
 
-            // Store current rotation before GSAP updates
             const currentRotation = rocketAngleRef.current || 12
             
             gsap.set(pageRocket, {
               autoAlpha: visible ? 1 : 0,
               left: `${gsap.utils.interpolate(72, 54, progress)}vw`,
               top: `${gsap.utils.interpolate(26, 82, progress)}vh`,
-              rotate: currentRotation, // Preserve cursor tracking
+              rotate: currentRotation,
               scale: gsap.utils.interpolate(1.02, 1.08, progress),
               zIndex: 9000,
             })
           },
         })
 
-        // Timeline section - rocket COMPLETELY HIDDEN (autoAlpha: 0)
+        // Timeline section - rocket COMPLETELY HIDDEN
         ScrollTrigger.create({
           trigger: '.timeline-section',
           start: 'top bottom',
@@ -217,7 +208,7 @@ function App() {
               autoAlpha: finalOpacity,
               left: `${left}vw`,
               top: `${top}vh`,
-              rotate: currentRotation, // Preserve cursor tracking
+              rotate: currentRotation,
               scale: gsap.utils.interpolate(1.08, 0.9, posProgress),
               zIndex: zIndex,
             })
@@ -243,7 +234,7 @@ function App() {
               autoAlpha: finalOpacity,
               left: `${gsap.utils.interpolate(48, 44, progress)}vw`,
               top: `${gsap.utils.interpolate(60, 48, progress)}vh`,
-              rotate: currentRotation, // Preserve cursor tracking
+              rotate: currentRotation,
               scale: gsap.utils.interpolate(0.9, 0.7, progress),
               zIndex: 9000,
             })
@@ -251,7 +242,7 @@ function App() {
         })
       }
 
-      // ... (rest of the scroll animations - unchanged)
+      // ===== ORIGINAL SCROLL ANIMATIONS (FROM VERSION 1) =====
       const hero = '.hero'
       const timeline = gsap.timeline({
         scrollTrigger: {
@@ -511,6 +502,597 @@ function App() {
         ease: 'sine.inOut',
         stagger: 0.15,
       })
+
+      // ===== NEW SCROLLTRIGGER ANIMATIONS (FROM VERSION 2) =====
+
+      // 1. Timeline items stagger animation with 3D effect
+      const timelineItems = document.querySelectorAll('.timeline-item')
+      if (timelineItems.length) {
+        timelineItems.forEach((item, index) => {
+          gsap.from(item, {
+            scrollTrigger: {
+              trigger: item,
+              start: 'top 85%',
+              end: 'top 40%',
+              scrub: 1,
+              toggleActions: 'play none none reverse',
+            },
+            y: 80,
+            opacity: 0,
+            rotationX: 15,
+            scale: 0.92,
+            duration: 1.2,
+            ease: 'power3.out',
+            delay: index * 0.15,
+          })
+        })
+      }
+
+      // 2. Enhanced marquee items with individual hover and scroll effects
+      const marqueeItems = document.querySelectorAll('.marquee-item')
+      if (marqueeItems.length) {
+        marqueeItems.forEach((item, index) => {
+          gsap.from(item, {
+            scrollTrigger: {
+              trigger: '.timeline-marquee',
+              start: 'top 80%',
+              end: 'top 20%',
+              scrub: 1.5,
+              toggleActions: 'play none none reverse',
+            },
+            y: 40,
+            opacity: 0,
+            scale: 0.88,
+            duration: 1,
+            ease: 'power2.out',
+            delay: index * 0.08,
+          })
+        })
+      }
+
+      // 3. Three.js globe fade-in with glow - SAFE
+      const threeWrapper = document.querySelector('.three-wrapper')
+      if (threeWrapper) {
+        gsap.from(threeWrapper, {
+          scrollTrigger: {
+            trigger: threeWrapper,
+            start: 'top 80%',
+            end: 'top 30%',
+            scrub: 1.2,
+            toggleActions: 'play none none reverse',
+          },
+          opacity: 0,
+          scale: 0.92,
+          duration: 1.5,
+          ease: 'power3.out',
+        })
+        
+        gsap.to(threeWrapper, {
+          scrollTrigger: {
+            trigger: threeWrapper,
+            start: 'top 70%',
+            end: 'bottom 20%',
+            scrub: 2,
+          },
+          boxShadow: '0 42px 130px rgba(100, 150, 255, 0.25)',
+          duration: 1,
+          ease: 'power1.inOut',
+        })
+      }
+
+      // 4. Scene transition effects with perspective
+      const scenes = document.querySelectorAll('.scene')
+      if (scenes.length) {
+        scenes.forEach((scene) => {
+          gsap.from(scene, {
+            scrollTrigger: {
+              trigger: scene.closest('.window-shell') || scene,
+              start: 'top 90%',
+              end: 'top 30%',
+              scrub: 1.5,
+              toggleActions: 'play none none reverse',
+            },
+            opacity: 0.2,
+            scale: 0.85,
+            rotationY: 20,
+            duration: 1.2,
+            ease: 'power2.out',
+          })
+
+          const headings = scene.querySelectorAll('h1')
+          if (headings.length) {
+            gsap.from(headings, {
+              scrollTrigger: {
+                trigger: scene,
+                start: 'top 70%',
+                end: 'top 20%',
+                scrub: 1,
+                toggleActions: 'play none none reverse',
+              },
+              y: 30,
+              opacity: 0,
+              duration: 1,
+              ease: 'power2.out',
+            })
+          }
+          
+          const paragraphs = scene.querySelectorAll('p')
+          if (paragraphs.length) {
+            gsap.from(paragraphs, {
+              scrollTrigger: {
+                trigger: scene,
+                start: 'top 70%',
+                end: 'top 20%',
+                scrub: 1,
+                toggleActions: 'play none none reverse',
+              },
+              y: 20,
+              opacity: 0,
+              duration: 0.8,
+              delay: 0.2,
+              ease: 'power2.out',
+            })
+          }
+          
+          const badges = scene.querySelectorAll('.trivia-badge')
+          if (badges.length) {
+            gsap.from(badges, {
+              scrollTrigger: {
+                trigger: scene,
+                start: 'top 65%',
+                end: 'top 15%',
+                scrub: 1,
+                toggleActions: 'play none none reverse',
+              },
+              scale: 0.9,
+              opacity: 0,
+              duration: 0.8,
+              delay: 0.4,
+              ease: 'back.out(1.7)',
+            })
+          }
+        })
+      }
+
+      // 5. Logo chips with floating animation
+      const logoChips = document.querySelectorAll('.logo-chip')
+      if (logoChips.length) {
+        logoChips.forEach((chip, index) => {
+          gsap.from(chip, {
+            scrollTrigger: {
+              trigger: chip.closest('.scene.web2') || chip,
+              start: 'top 80%',
+              end: 'top 20%',
+              scrub: 1,
+              toggleActions: 'play none none reverse',
+            },
+            y: 40,
+            opacity: 0,
+            scale: 0.7,
+            rotation: 15,
+            duration: 0.8,
+            delay: index * 0.1,
+            ease: 'back.out(1.7)',
+          })
+        })
+      }
+
+      // 6. Social bubbles with wave effect
+      const bubbles = document.querySelectorAll('.bubble')
+      if (bubbles.length) {
+        bubbles.forEach((bubble, index) => {
+          gsap.from(bubble, {
+            scrollTrigger: {
+              trigger: bubble.closest('.scene.web2') || bubble,
+              start: 'top 75%',
+              end: 'top 15%',
+              scrub: 1,
+              toggleActions: 'play none none reverse',
+            },
+            y: 60,
+            opacity: 0,
+            scale: 0.5,
+            duration: 0.8,
+            delay: index * 0.15,
+            ease: 'elastic.out(1, 0.5)',
+          })
+        })
+      }
+
+      // 7. Neon nodes with pulse
+      const neonNodes = document.querySelectorAll('.neon-node')
+      if (neonNodes.length) {
+        neonNodes.forEach((node, index) => {
+          gsap.from(node, {
+            scrollTrigger: {
+              trigger: node.closest('.scene.ai') || node,
+              start: 'top 80%',
+              end: 'top 20%',
+              scrub: 1,
+              toggleActions: 'play none none reverse',
+            },
+            scale: 0.2,
+            opacity: 0,
+            duration: 1,
+            delay: index * 0.1,
+            ease: 'power3.out',
+          })
+          
+          gsap.to(node, {
+            scrollTrigger: {
+              trigger: node.closest('.scene.ai') || node,
+              start: 'top 70%',
+              end: 'bottom 20%',
+              scrub: 2,
+              toggleActions: 'play none none reverse',
+            },
+            boxShadow: '0 0 60px rgba(176, 98, 255, 0.4)',
+            duration: 2,
+            ease: 'sine.inOut',
+            yoyo: true,
+            repeat: -1,
+          })
+        })
+      }
+
+      // 8. Browser shapes with staggered entrance
+      const shapes = document.querySelectorAll('.shape')
+      if (shapes.length) {
+        shapes.forEach((shape, index) => {
+          gsap.from(shape, {
+            scrollTrigger: {
+              trigger: shape.closest('.browser-mock') || shape,
+              start: 'top 85%',
+              end: 'top 30%',
+              scrub: 1,
+              toggleActions: 'play none none reverse',
+            },
+            y: 60,
+            opacity: 0,
+            scale: 0.6,
+            rotation: 30,
+            duration: 0.8,
+            delay: index * 0.12,
+            ease: 'back.out(1.7)',
+          })
+        })
+      }
+
+      // 9. Sidebar chips with magnetic effect
+      const sidebarChips = document.querySelectorAll('.sidebar-chip')
+      if (sidebarChips.length) {
+        sidebarChips.forEach((chip, index) => {
+          gsap.from(chip, {
+            scrollTrigger: {
+              trigger: chip,
+              start: 'top 90%',
+              end: 'top 40%',
+              scrub: 1.2,
+              toggleActions: 'play none none reverse',
+            },
+            x: index % 2 === 0 ? -80 : 80,
+            opacity: 0,
+            duration: 1,
+            delay: index * 0.1,
+            ease: 'power3.out',
+          })
+        })
+      }
+
+      // 10. Hero footer with typewriter effect
+      const heroFooter = document.querySelector('.hero-footer')
+      if (heroFooter) {
+        gsap.from(heroFooter, {
+          scrollTrigger: {
+            trigger: heroFooter,
+            start: 'top 90%',
+            end: 'top 40%',
+            scrub: 1,
+            toggleActions: 'play none none reverse',
+          },
+          y: 50,
+          opacity: 0,
+          duration: 1.2,
+          ease: 'power3.out',
+        })
+      }
+
+      // 11. Game panel entrance
+      const gamePanel = document.querySelector('.game-panel')
+      if (gamePanel) {
+        gsap.from(gamePanel, {
+          scrollTrigger: {
+            trigger: gamePanel,
+            start: 'top 85%',
+            end: 'top 30%',
+            scrub: 1.5,
+            toggleActions: 'play none none reverse',
+          },
+          y: 80,
+          opacity: 0,
+          scale: 0.95,
+          duration: 1.5,
+          ease: 'power3.out',
+        })
+      }
+
+      // 12. Game controls stagger
+      const controls = document.querySelectorAll('.game-control-strip span')
+      if (controls.length) {
+        controls.forEach((control, index) => {
+          gsap.from(control, {
+            scrollTrigger: {
+              trigger: '.game-control-strip',
+              start: 'top 85%',
+              end: 'top 30%',
+              scrub: 1,
+              toggleActions: 'play none none reverse',
+            },
+            y: 30,
+            opacity: 0,
+            duration: 0.6,
+            delay: index * 0.1,
+            ease: 'power2.out',
+          })
+        })
+      }
+
+      // 13. Game status with glow pulse
+      const gameStatus = document.querySelector('.game-status')
+      if (gameStatus) {
+        gsap.from(gameStatus, {
+          scrollTrigger: {
+            trigger: gameStatus,
+            start: 'top 90%',
+            end: 'top 40%',
+            scrub: 1,
+            toggleActions: 'play none none reverse',
+          },
+          y: 40,
+          opacity: 0,
+          duration: 1,
+          ease: 'power2.out',
+        })
+      }
+
+      // 14. Rocket landing section with parallax
+      const landingSection = document.querySelector('.rocket-landing-section')
+      if (landingSection) {
+        const landingRocket = document.querySelector('.landing-rocket-container')
+        if (landingRocket) {
+          gsap.from(landingRocket, {
+            scrollTrigger: {
+              trigger: landingSection,
+              start: 'top 85%',
+              end: 'top 20%',
+              scrub: 1.5,
+              toggleActions: 'play none none reverse',
+            },
+            y: 120,
+            opacity: 0,
+            scale: 0.7,
+            rotation: 20,
+            duration: 1.5,
+            ease: 'power3.out',
+          })
+        }
+
+        const landingText = document.querySelector('.landing-text')
+        if (landingText) {
+          gsap.from(landingText, {
+            scrollTrigger: {
+              trigger: landingSection,
+              start: 'top 85%',
+              end: 'top 20%',
+              scrub: 1.5,
+              toggleActions: 'play none none reverse',
+            },
+            y: 60,
+            opacity: 0,
+            duration: 1.5,
+            delay: 0.3,
+            ease: 'power3.out',
+          })
+        }
+
+        const stats = document.querySelectorAll('.landing-stats span')
+        if (stats.length) {
+          stats.forEach((stat, index) => {
+            gsap.from(stat, {
+              scrollTrigger: {
+                trigger: landingSection,
+                start: 'top 80%',
+                end: 'top 15%',
+                scrub: 1,
+                toggleActions: 'play none none reverse',
+              },
+              y: 30,
+              opacity: 0,
+              scale: 0.8,
+              duration: 0.8,
+              delay: index * 0.1 + 0.5,
+              ease: 'back.out(1.7)',
+            })
+          })
+        }
+      }
+
+      // 15. Footer with slide up
+      const footer = document.querySelector('.landing-footer')
+      if (footer) {
+        gsap.from(footer, {
+          scrollTrigger: {
+            trigger: footer,
+            start: 'top 95%',
+            end: 'top 40%',
+            scrub: 1,
+            toggleActions: 'play none none reverse',
+          },
+          y: 40,
+          opacity: 0,
+          duration: 1,
+          ease: 'power2.out',
+        })
+      }
+
+      // 16. Timeline intro with float
+      const timelineIntro = document.querySelector('.timeline-intro')
+      if (timelineIntro) {
+        gsap.from(timelineIntro, {
+          scrollTrigger: {
+            trigger: timelineIntro,
+            start: 'top 85%',
+            end: 'top 30%',
+            scrub: 1.2,
+            toggleActions: 'play none none reverse',
+          },
+          y: 50,
+          opacity: 0,
+          duration: 1.2,
+          ease: 'power3.out',
+        })
+      }
+
+      // 17. Rocket trail particles
+      const trail = document.querySelector('.page-rocket__trail')
+      if (trail) {
+        gsap.to(trail, {
+          scrollTrigger: {
+            trigger: '.hero',
+            start: 'top top',
+            end: 'bottom top',
+            scrub: 2,
+          },
+          scaleX: 1.4,
+          scaleY: 1.6,
+          duration: 1,
+          ease: 'sine.inOut',
+          yoyo: true,
+        })
+      }
+
+      // 18. Background orbit with scroll parallax
+      const outerOrbit = document.querySelector('.orbit--outer')
+      if (outerOrbit) {
+        gsap.to(outerOrbit, {
+          scrollTrigger: {
+            trigger: '.hero',
+            start: 'top top',
+            end: 'bottom top',
+            scrub: 3,
+          },
+          scale: 1.3,
+          opacity: 0.3,
+          duration: 1,
+          ease: 'power1.inOut',
+        })
+      }
+      
+      const innerOrbit = document.querySelector('.orbit--inner')
+      if (innerOrbit) {
+        gsap.to(innerOrbit, {
+          scrollTrigger: {
+            trigger: '.hero',
+            start: 'top top',
+            end: 'bottom top',
+            scrub: 3,
+          },
+          scale: 0.7,
+          opacity: 0.2,
+          x: 100,
+          duration: 1,
+          ease: 'power1.inOut',
+        })
+      }
+
+      // 19. Window shell with parallax depth
+      const windowShell = document.querySelector('.window-shell')
+      if (windowShell) {
+        gsap.to(windowShell, {
+          scrollTrigger: {
+            trigger: '.hero',
+            start: 'top top',
+            end: 'bottom top',
+            scrub: 2,
+          },
+          y: 30,
+          duration: 1,
+          ease: 'power1.inOut',
+        })
+      }
+
+      // 20. Address bar with typewriter animation on scroll
+      const addressBar = document.querySelector('.address')
+      if (addressBar) {
+        gsap.from(addressBar, {
+          scrollTrigger: {
+            trigger: '.chrome-bar',
+            start: 'top 90%',
+            end: 'top 30%',
+            scrub: 1,
+            toggleActions: 'play none none reverse',
+          },
+          opacity: 0.2,
+          x: -30,
+          duration: 1,
+          ease: 'power2.out',
+        })
+      }
+
+      // 21. Era pills with glow pulse
+      const eraPills = document.querySelectorAll('.era-pill')
+      if (eraPills.length) {
+        eraPills.forEach((pill) => {
+          gsap.to(pill, {
+            scrollTrigger: {
+              trigger: pill,
+              start: 'top 80%',
+              end: 'bottom 20%',
+              toggleActions: 'play none none reverse',
+            },
+            boxShadow: '0 0 30px rgba(98, 155, 255, 0.2)',
+            duration: 2,
+            ease: 'sine.inOut',
+            yoyo: true,
+            repeat: -1,
+          })
+        })
+      }
+
+      // 22. Background gradient shifts - SAFE
+      const appElement = document.querySelector('.App')
+      if (appElement) {
+        gsap.to(appElement, {
+          scrollTrigger: {
+            trigger: '.timeline-section',
+            start: 'top bottom',
+            end: 'bottom top',
+            scrub: 2,
+          },
+          background: 'radial-gradient(circle at 60% 40%, rgba(71, 92, 255, 0.25), rgba(241, 99, 255, 0.15), transparent 30%), radial-gradient(circle at 20% 80%, rgba(100, 200, 255, 0.12), transparent 25%), linear-gradient(180deg, #09070f 0%, #0d1125 40%, #1a0a2e 70%, #09070f 100%)',
+          duration: 1,
+          ease: 'power1.inOut',
+        })
+      }
+
+      // 23. Game board with subtle hover reveal on scroll
+      const gameBoard = document.querySelector('.game-board')
+      if (gameBoard) {
+        gsap.from(gameBoard, {
+          scrollTrigger: {
+            trigger: gameBoard,
+            start: 'top 85%',
+            end: 'top 20%',
+            scrub: 1.5,
+            toggleActions: 'play none none reverse',
+          },
+          y: 60,
+          opacity: 0.6,
+          duration: 1.5,
+          ease: 'power3.out',
+        })
+      }
+
     }, appRef)
 
     // Marquee magnetic interaction
@@ -544,7 +1126,7 @@ function App() {
       const cursor = cursorRef.current
       if (!cursor) return
       const hoverTarget = event.target.closest(
-        '.page-shell, .sidebar-chip, .chrome-bar, .browser-mock, .hero-footer',
+        '.page-shell, .sidebar-chip, .chrome-bar, .browser-mock, .hero-footer, .marquee-item, .game-button, .logo-chip',
       )
 
       cursor.style.left = `${event.clientX}px`
@@ -554,7 +1136,6 @@ function App() {
         : 'translate(-50%, -50%) scale(1)'
       cursor.style.background = hoverTarget ? 'rgba(255, 255, 255, 0.16)' : 'transparent'
       
-      // Store cursor position for rocket tracking
       cursorPositionRef.current = { x: event.clientX, y: event.clientY }
     }
 
@@ -574,7 +1155,7 @@ function App() {
     }
   }, [isRocketVisible])
 
-  // ... (rest of the game logic - unchanged from your original)
+  // ... (rest of the game logic - unchanged)
   const activateTimeWarp = (message) => {
     if (timeWarpActive) return
     setTimeWarpActive(true)
@@ -621,43 +1202,31 @@ function App() {
 
   // Clean up game state
   const cleanupGame = () => {
-    // Cancel animation frame
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current)
       animationFrameRef.current = null
     }
     
-    // Clear timeouts
     if (warpTimeoutRef.current) {
       window.clearTimeout(warpTimeoutRef.current)
       warpTimeoutRef.current = null
     }
     
-    // Reset player position
     playerInitializedRef.current = false
     playerPosRef.current = { x: 24, y: 24, vx: 0, vy: 0 }
-    
-    // Reset keys
     keysRef.current = { w: false, a: false, s: false, d: false }
-    
-    // Clear obstacles and collectibles
     obstaclesRef.current = []
     collectibleDefsRef.current = []
     obstacleRefs.current = []
     collectibleRefs.current = []
-    
-    // Reset scores
     scoreRef.current = 0
     lastScoreRef.current = 0
-    
-    // Reset game state
     setObstacles([])
     setScore(0)
     setFuelCells(0)
     setEraIndex(0)
     setTimeWarpActive(false)
     
-    // Reset player visibility
     if (playerRef.current) {
       gsap.set(playerRef.current, {
         x: 0,
@@ -672,7 +1241,6 @@ function App() {
 
   useEffect(() => {
     const update = (time) => {
-      // If game is not active, just keep the loop running but don't update
       if (!gameActive) {
         lastFrameRef.current = time
         animationFrameRef.current = requestAnimationFrame(update)
@@ -859,17 +1427,13 @@ function App() {
     if (isGameStartingRef.current) return
     isGameStartingRef.current = true
     
-    // Clean up any existing game state
     cleanupGame()
-    
     hideRocket()
     
-    // Scroll to game after a small delay
     setTimeout(() => {
       scrollToGame()
     }, 100)
     
-    // Initialize game after scroll
     setTimeout(() => {
       setScore(0)
       scoreRef.current = 0
@@ -923,28 +1487,20 @@ function App() {
     if (isResettingRef.current) return
     isResettingRef.current = true
     
-    // Clean up everything
     cleanupGame()
-    
-    // Reset game state
     setGameActive(false)
     setGameHint('Use W to thrust and A / D to steer the rocket.')
-    
-    // Show rocket after reset
     showRocket()
     
-    // Scroll to game after a small delay
     setTimeout(() => {
       scrollToGame()
     }, 100)
     
-    // Re-initialize after scroll
     setTimeout(() => {
       if (gameRef.current) {
         const board = gameRef.current.getBoundingClientRect()
         lanePositionsRef.current = Array.from({ length: laneCount }, (_, index) => board.width / laneCount * (index + 0.5) - 22)
         
-        // Reset player position
         if (playerRef.current) {
           playerInitializedRef.current = true
           playerPosRef.current = {
@@ -962,16 +1518,13 @@ function App() {
           playerRef.current.classList.remove('thrusting')
         }
         
-        // Create fresh obstacles
         createObstacles(board)
         
-        // Position all obstacles
         obstaclesRef.current.forEach((obs, idx) => {
           const el = obstacleRefs.current[idx]
           if (el) gsap.set(el, { x: lanePositionsRef.current[obs.lane], y: obs.y, rotation: obs.rotation })
         })
         
-        // Position all collectibles
         collectibleDefsRef.current.forEach((item, idx) => {
           const el = collectibleRefs.current[idx]
           if (el) gsap.set(el, { x: lanePositionsRef.current[item.lane], y: item.y })
@@ -985,7 +1538,6 @@ function App() {
   return (
     <div className="App" ref={appRef}>
       <div className="custom-cursor" ref={cursorRef} />
-      {/* Always render the rocket, control visibility with GSAP */}
       <div className="page-rocket" ref={pageRocketRef} aria-hidden="true">
         <div className="page-rocket__body">
           <span className="page-rocket__window" />
@@ -1004,9 +1556,9 @@ function App() {
 
         <div className="hero-grid">
           <aside className="sidebar">
-            <div className="sidebar-chip">56k modem</div>
-            <div className="sidebar-chip">static pages</div>
-            <div className="sidebar-chip">shareware culture</div>
+            <div className="sidebar-chip">📡 56k modem (1992)</div>
+            <div className="sidebar-chip">🖥️ Static pages (1994)</div>
+            <div className="sidebar-chip">💾 Shareware culture (1990s)</div>
           </aside>
 
           <div className="page-shell">
@@ -1017,31 +1569,37 @@ function App() {
                   <span />
                   <span />
                 </div>
-                <div className="address">https://charlespura.github.io/EvolutionoftheInternet/</div>
+                <div className="address">🌐 https://evolutionoftheinternet.com</div>
               </div>
               <div className="window-body">
                 <div className="scene web1">
-                  <span className="era-pill">WEB 1.0</span>
-                  <h1>Dial-up gateway</h1>
+                  <span className="era-pill">📘 WEB 1.0 · 1990–2004</span>
+                  <h1>The Dial-Up Gateway</h1>
                   <p>
                     Pixel fonts, clickable GIFs, and the first browser windows that
-                    felt alive.
+                    felt alive. The Internet was a digital library — static, 
+                    informative, and revolutionary.
                   </p>
                   <div className="window-panel">
-                    <div className="url-bar">Load page: 97%</div>
+                    <div className="url-bar">📶 Loading page: 97% • 14.4kbps</div>
                     <div className="link-grid">
-                      <span>Welcome</span>
-                      <span>Guestbook</span>
-                      <span>Under Construction</span>
+                      <span>🏠 Welcome</span>
+                      <span>📝 Guestbook</span>
+                      <span>🚧 Under Construction</span>
                     </div>
+                  </div>
+                  <div className="trivia-badge">
+                    <span>💡 Did you know? The first website went live in 1991!</span>
                   </div>
                 </div>
 
                 <div className="scene web2">
-                  <span className="era-pill">WEB 2.0</span>
+                  <span className="era-pill">💬 WEB 2.0 · 2004–2010</span>
                   <h1>Finish the sentence:</h1>
                   <p>
                     Social feeds, friends, and the page that grows as you scroll.
+                    The Internet became a conversation — interactive, collaborative,
+                    and community-driven.
                   </p>
                   <div className="spark-grid">
                     <span className="spark" />
@@ -1054,9 +1612,12 @@ function App() {
                     <div className="bubble" />
                   </div>
                   <div className="metrics">
-                    <span className="tag">Likes</span>
-                    <span className="tag">Shares</span>
-                    <span className="tag">Memes</span>
+                    <span className="tag">👍 Likes (2006)</span>
+                    <span className="tag">🔄 Shares (2007)</span>
+                    <span className="tag">😎 Memes (2008)</span>
+                  </div>
+                  <div className="trivia-badge">
+                    <span>💡 Facebook launched in 2004, YouTube in 2005!</span>
                   </div>
 
                   <div className="logo-grid">
@@ -1066,7 +1627,7 @@ function App() {
                         <path fill="#ef652a" d="M24 41.5l10.3-2.9L34 8H24z" />
                         <path fill="#fff" d="M24 21.6h5.6l.4-4.7H24v-4.7h10.2l-.1 1.1-1 11.1H24zm0 12.3l.1-.1 7.4-2.1.5-5.9H24v-4.7h8.4l-.1 1.1-1 11.1L24 33.9z" />
                       </svg>
-                      <span>HTML</span>
+                      <span>HTML5 (2008)</span>
                     </div>
                     <div className="logo-chip css">
                       <svg viewBox="0 0 48 48" aria-hidden="true">
@@ -1074,14 +1635,14 @@ function App() {
                         <path fill="#33a9dc" d="M24 41.5l10.3-2.9L34 8H24z" />
                         <path fill="#fff" d="M24 21.6h10.1l-.9 10.2L24 33.9l-9.2-1.1-.6-6.9h4.1l.3 3.3 5.4 1.4 5.4-1.4.5-5.5H24z" />
                       </svg>
-                      <span>CSS</span>
+                      <span>CSS3 (2009)</span>
                     </div>
                     <div className="logo-chip js">
                       <svg viewBox="0 0 48 48" aria-hidden="true">
                         <path fill="#f7df1e" d="M8 4h32l-3.2 36.3L24 44l-12.8-3.7z" />
                         <path fill="#000" d="M24 18.5h5.7v10.2l3.8 1.1.7-2.5-3.6-1.1V18.5H24zm-8.5 0h5.7v2.6h-3v1.8h2.4v2.6H18v4.1h-2.5v-7z" />
                       </svg>
-                      <span>JS</span>
+                      <span>JavaScript (1995)</span>
                     </div>
                     <div className="logo-chip react">
                       <svg viewBox="0 0 64 64" aria-hidden="true">
@@ -1092,7 +1653,7 @@ function App() {
                           <ellipse cx="32" cy="32" rx="6" ry="20" transform="rotate(-60 32 32)" />
                         </g>
                       </svg>
-                      <span>React</span>
+                      <span>React (2013)</span>
                     </div>
                     <div className="logo-chip node">
                       <svg viewBox="0 0 64 64" aria-hidden="true">
@@ -1100,7 +1661,7 @@ function App() {
                         <path d="M24 21h16v22H24z" fill="#fff" opacity="0.18" />
                         <text x="32" y="39" textAnchor="middle" fill="#0b0b0b" fontSize="14" fontWeight="700" fontFamily="Inter, sans-serif">node</text>
                       </svg>
-                      <span>Node</span>
+                      <span>Node.js (2009)</span>
                     </div>
                     <div className="logo-chip ai">
                       <svg viewBox="0 0 64 64" aria-hidden="true">
@@ -1109,17 +1670,18 @@ function App() {
                         <circle cx="40" cy="26" r="4" fill="#fff" />
                         <path d="M24 40c2-3 8-3 8-3s6 0 8 3" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" />
                       </svg>
-                      <span>AI</span>
+                      <span>AI (2022)</span>
                     </div>
                   </div>
                 </div>
 
                 <div className="scene mobile">
-                  <span className="era-pill">MOBILE ERA</span>
+                  <span className="era-pill">📱 MOBILE ERA · 2010–2022</span>
                   <h1>Tap, swipe, launch</h1>
                   <p>
                     The web became a pocket universe with motion, gestures, and
-                    liquid layouts.
+                    liquid layouts. Smartphones redefined how we connect — 
+                    responsive, accessible, and always on.
                   </p>
                   <div className="device">
                     <div className="screen-grid">
@@ -1129,20 +1691,27 @@ function App() {
                       <div className="pill" />
                     </div>
                   </div>
+                  <div className="trivia-badge">
+                    <span>📱 The first iPhone launched in 2007, App Store in 2008!</span>
+                  </div>
                 </div>
 
                 <div className="scene ai">
-                  <span className="era-pill">AI ERA</span>
+                  <span className="era-pill">🤖 AI ERA · 2022–Present</span>
                   <h1 ref={aiHeadingRef}>The page now thinks for itself</h1>
                   <p>
                     Dynamic stories, smart layers, and immersive code that evolves
-                    with every scroll.
+                    with every scroll. AI is transforming the web from static 
+                    to intelligent, adaptive experiences.
                   </p>
                   <div className="neon-grid">
                     <div className="neon-node" />
                     <div className="neon-node" />
                     <div className="neon-node" />
                     <div className="neon-node" />
+                  </div>
+                  <div className="trivia-badge">
+                    <span>🧠 ChatGPT launched in 2022, marking a new era of AI!</span>
                   </div>
                 </div>
               </div>
@@ -1158,17 +1727,18 @@ function App() {
         </div>
 
         <div className="hero-footer">
-          <span>Scroll to morph the page through time</span>
+          <span>✨ Scroll to morph the page through time · 1990 → Present</span>
         </div>
       </div>
 
       <section className="timeline-section">
         <div className="timeline-intro">
-          <span>Evolution of the Internet</span>
+          <span>⏳ Evolution of the Internet</span>
           <h2>From static pages to connected worlds</h2>
           <p>
             Experience the next chapter in the evolution theme with a 3D network
-            object and timeline cards that animate into view.
+            object and timeline cards that animate into view. Each era brought 
+            new technologies, new ways to connect, and new possibilities.
           </p>
         </div>
 
@@ -1176,38 +1746,46 @@ function App() {
           <div className="marquee-track">
             <div className="marquee-group">
               <div className="marquee-item">
-                <h3>WEB 1.0</h3>
-                <p>Slow dial-up, basic HTML, and the first digital footprints.</p>
+                <h3>📘 WEB 1.0 · 1990–2004</h3>
+                <p>Slow dial-up, basic HTML, and the first digital footprints. The Internet as a library.</p>
+                <span className="marquee-year">1991: First website</span>
               </div>
               <div className="marquee-item">
-                <h3>WEB 2.0</h3>
-                <p>Communities, social sharing, and the rise of dynamic content.</p>
+                <h3>💬 WEB 2.0 · 2004–2010</h3>
+                <p>Communities, social sharing, and the rise of dynamic content. The Internet as a conversation.</p>
+                <span className="marquee-year">2004: Facebook, 2005: YouTube</span>
               </div>
               <div className="marquee-item">
-                <h3>MOBILE ERA</h3>
-                <p>Responsive flows, touch interfaces, and the network in your pocket.</p>
+                <h3>📱 MOBILE ERA · 2010–2022</h3>
+                <p>Responsive flows, touch interfaces, and the network in your pocket. The Internet everywhere.</p>
+                <span className="marquee-year">2007: First iPhone</span>
               </div>
               <div className="marquee-item">
-                <h3>AI FUTURE</h3>
-                <p>Intelligent web layers, adaptive experiences, and immersive interaction.</p>
+                <h3>🤖 AI FUTURE · 2022–Present</h3>
+                <p>Intelligent web layers, adaptive experiences, and immersive interaction. The Internet that thinks.</p>
+                <span className="marquee-year">2022: ChatGPT launches</span>
               </div>
             </div>
             <div className="marquee-group" aria-hidden="true">
               <div className="marquee-item">
-                <h3>WEB 1.0</h3>
-                <p>Slow dial-up, basic HTML, and the first digital footprints.</p>
+                <h3>📘 WEB 1.0 · 1990–2004</h3>
+                <p>Slow dial-up, basic HTML, and the first digital footprints. The Internet as a library.</p>
+                <span className="marquee-year">1991: First website</span>
               </div>
               <div className="marquee-item">
-                <h3>WEB 2.0</h3>
-                <p>Communities, social sharing, and the rise of dynamic content.</p>
+                <h3>💬 WEB 2.0 · 2004–2010</h3>
+                <p>Communities, social sharing, and the rise of dynamic content. The Internet as a conversation.</p>
+                <span className="marquee-year">2004: Facebook, 2005: YouTube</span>
               </div>
               <div className="marquee-item">
-                <h3>MOBILE ERA</h3>
-                <p>Responsive flows, touch interfaces, and the network in your pocket.</p>
+                <h3>📱 MOBILE ERA · 2010–2022</h3>
+                <p>Responsive flows, touch interfaces, and the network in your pocket. The Internet everywhere.</p>
+                <span className="marquee-year">2007: First iPhone</span>
               </div>
               <div className="marquee-item">
-                <h3>AI FUTURE</h3>
-                <p>Intelligent web layers, adaptive experiences, and immersive interaction.</p>
+                <h3>🤖 AI FUTURE · 2022–Present</h3>
+                <p>Intelligent web layers, adaptive experiences, and immersive interaction. The Internet that thinks.</p>
+                <span className="marquee-year">2022: ChatGPT launches</span>
               </div>
             </div>
           </div>
@@ -1226,7 +1804,7 @@ function App() {
         <div className="game-panel">
           <div className="game-heading">
             <div>
-              <span className="game-label">Space Command</span>
+              <span className="game-label">🚀 Space Command</span>
               <h2>Rocket Run</h2>
               <p className="game-subtitle">{gameHint}</p>
             </div>
@@ -1236,23 +1814,23 @@ function App() {
                 onClick={beginGame} 
                 className="game-button"
               >
-                {gameActive ? 'Restart Sprint' : 'Start Sprint'}
+                {gameActive ? '🔄 Restart Sprint' : '🚀 Start Sprint'}
               </button>
               <button 
                 type="button" 
                 onClick={resetGame} 
                 className="game-button game-button--ghost"
               >
-                Reset
+                ↩️ Reset
               </button>
             </div>
           </div>
 
           <div className="game-board" ref={gameRef} tabIndex={0}>
             <div className="game-control-strip" aria-hidden="true">
-              <span><b>W</b> Thrust</span>
-              <span><b>A</b> Left</span>
-              <span><b>D</b> Right</span>
+              <span><b>W</b> ⬆️ Thrust</span>
+              <span><b>A</b> ⬅️ Left</span>
+              <span><b>D</b> ➡️ Right</span>
             </div>
             {Array.from({ length: laneCount }, (_, lane) => (
               <div key={lane} className="game-lane" style={{ left: `${(100 / laneCount) * lane}%`, width: `${100 / laneCount}%` }} />
@@ -1286,9 +1864,9 @@ function App() {
               />
             ))}
             <div className="game-status">
-              <span>{eras[eraIndex]}</span>
-              <span>Score: {score}</span>
-              <span>Fuel Cells: {fuelCells}</span>
+              <span>🌌 {eras[eraIndex]}</span>
+              <span>⭐ Score: {score}</span>
+              <span>⚡ Fuel Cells: {fuelCells}</span>
             </div>
           </div>
         </div>
@@ -1315,12 +1893,15 @@ function App() {
             </div>
           </div>
           <div className="landing-text">
-            <h2>Mission Complete</h2>
-            <p>Your journey through the evolution of the web has landed safely.</p>
+            <h2>🌐 Mission Complete</h2>
+            <p>Your journey through the evolution of the web has landed safely. 
+            From dial-up to AI, the Internet continues to transform how we live, 
+            work, and connect.</p>
             <div className="landing-stats">
-              <span>🌐 Web Evolution</span>
-              <span>🚀 Rocket Run</span>
-              <span>✨ AI Era</span>
+              <span>📘 Web 1.0 (1990)</span>
+              <span>💬 Web 2.0 (2004)</span>
+              <span>📱 Mobile (2010)</span>
+              <span>🤖 AI Era (2022)</span>
             </div>
           </div>
         </div>
@@ -1329,11 +1910,10 @@ function App() {
             <span className="footer-copyright">
               © {new Date().getFullYear()} Charles Pura. All rights reserved.
             </span>
-            <span className="footer-tagline">Built with ❤️ for the future of the web</span>
+            <span className="footer-tagline">🚀 Built with ❤️ for the future of the web</span>
             <div className="footer-links">
-              <a href="#" className="footer-link">GitHub</a>
-              <a href="#" className="footer-link">Twitter</a>
-              <a href="#" className="footer-link">LinkedIn</a>
+              <a href="https://github.com/charlespura/EvolutionoftheInternet" className="footer-link">📦 GitHub</a>
+              <a href="https://www.linkedin.com/in/charlespura/" className="footer-link">💼 LinkedIn</a>
             </div>
           </div>
         </footer>
